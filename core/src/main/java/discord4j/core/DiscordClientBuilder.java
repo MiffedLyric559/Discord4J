@@ -22,17 +22,16 @@ import discord4j.common.JacksonResourceProvider;
 import discord4j.common.RateLimiter;
 import discord4j.common.SimpleBucket;
 import discord4j.common.jackson.UnknownPropertyHandler;
+import discord4j.core.event.DefaultEventMapperFactory;
 import discord4j.core.event.EventDispatcher;
+import discord4j.core.event.EventMapper;
+import discord4j.core.event.EventMapperFactory;
 import discord4j.core.event.dispatch.DispatchContext;
-import discord4j.core.event.dispatch.DispatchHandlers;
 import discord4j.core.event.dispatch.StoreInvalidator;
 import discord4j.core.event.domain.Event;
 import discord4j.core.object.data.stored.MessageBean;
 import discord4j.core.object.presence.Presence;
-import discord4j.gateway.DefaultGatewayClient;
-import discord4j.gateway.GatewayClient;
-import discord4j.gateway.GatewayObserver;
-import discord4j.gateway.IdentifyOptions;
+import discord4j.gateway.*;
 import discord4j.gateway.json.GatewayPayload;
 import discord4j.gateway.json.VoiceStateUpdate;
 import discord4j.gateway.json.dispatch.Dispatch;
@@ -108,6 +107,12 @@ public final class DiscordClientBuilder {
 
     @Nullable
     private RetryOptions retryOptions;
+
+    @Nullable
+    private GatewayClientFactory gatewayClientFactory;
+
+    @Nullable
+    private EventMapperFactory eventMapperFactory;
 
     @Nullable
     private GatewayObserver gatewayObserver;
@@ -396,6 +401,50 @@ public final class DiscordClientBuilder {
     }
 
     /**
+     * Get the current {@link GatewayClientFactory} to use with the resulting clients.
+     *
+     * @return the currently installed factory, or {@code null} if using a {@link DefaultGatewayClientFactory}
+     */
+    @Nullable
+    public GatewayClientFactory getGatewayClientFactory() {
+        return gatewayClientFactory;
+    }
+
+    /**
+     * Set a new {@link GatewayClientFactory} to this builder, allowing you to configure the underlying
+     * {@link GatewayClient} used when logging in with the resulting clients.
+     *
+     * @param gatewayClientFactory the new factory, or {@code null} to use a {@link DefaultGatewayClientFactory}
+     * @return this builder
+     */
+    public DiscordClientBuilder setGatewayClientFactory(@Nullable GatewayClientFactory gatewayClientFactory) {
+        this.gatewayClientFactory = gatewayClientFactory;
+        return this;
+    }
+
+    /**
+     * Get the current {@link EventMapperFactory} to use with the resulting clients.
+     *
+     * @return the currently installed factory, or {@code null} if using a {@link DefaultEventMapperFactory}
+     */
+    @Nullable
+    public EventMapperFactory getEventMapperFactory() {
+        return eventMapperFactory;
+    }
+
+    /**
+     * Set a new {@link EventMapperFactory} to this builder, establishing the mapping strategy between {@link Dispatch}
+     * and {@link Event} objects produced to the {@link EventDispatcher}.
+     *
+     * @param eventMapperFactory the new factory, or {@code null} to use a {@link DefaultEventMapperFactory}
+     * @return this builder
+     */
+    public DiscordClientBuilder setEventMapperFactory(@Nullable EventMapperFactory eventMapperFactory) {
+        this.eventMapperFactory = eventMapperFactory;
+        return this;
+    }
+
+    /**
      * Get the current {@link GatewayObserver} set in this builder. GatewayObserver is used as a simple event
      * listener for gateway connection lifecycle. User can be notified of broad lifecycle events like connections,
      * resumes, reconnects and disconnects but also very specific ones like session sequence updates.
@@ -490,6 +539,20 @@ public final class DiscordClientBuilder {
                 Integer.MAX_VALUE, Schedulers.parallel());
     }
 
+    private GatewayClientFactory initGatewayClientFactory() {
+        if (gatewayClientFactory != null) {
+            return gatewayClientFactory;
+        }
+        return new DefaultGatewayClientFactory();
+    }
+
+    private EventMapperFactory initEventMapperFactory() {
+        if (eventMapperFactory != null) {
+            return eventMapperFactory;
+        }
+        return new DefaultEventMapperFactory();
+    }
+
     private StoreService initStoreService() {
         if (storeService != null) {
             return storeService;
@@ -582,7 +645,7 @@ public final class DiscordClientBuilder {
         // Prepare gateway client
         final RetryOptions retryOptions = initRetryOptions();
         final StoreInvalidator storeInvalidator = new StoreInvalidator(stateHolder);
-        final GatewayClient gatewayClient = new DefaultGatewayClient(httpClient,
+        final GatewayClient gatewayClient = initGatewayClientFactory().getGatewayClient(httpClient,
                 new JacksonPayloadReader(jackson.getObjectMapper()),
                 new JacksonPayloadWriter(jackson.getObjectMapper()),
                 retryOptions, token, identifyOptions, storeInvalidator.then(initGatewayObserver()),
@@ -601,9 +664,10 @@ public final class DiscordClientBuilder {
         // Prepare mediator and wire gateway events to EventDispatcher
         final ServiceMediator serviceMediator = new ServiceMediator(gatewayClient, restClient, storeService,
                 stateHolder, eventDispatcher, config, voiceClient);
+        final EventMapper eventMapper = initEventMapperFactory().getEventMapper();
         serviceMediator.getGatewayClient().dispatch()
                 .map(dispatch -> DispatchContext.of(dispatch, serviceMediator))
-                .flatMap(DispatchHandlers::<Dispatch, Event>handle)
+                .flatMap(eventMapper::<Dispatch, Event>handle)
                 .onErrorContinue((error, item) -> log.error("Error while dispatching event {}", item, error))
                 .subscribeWith(eventProcessor);
 

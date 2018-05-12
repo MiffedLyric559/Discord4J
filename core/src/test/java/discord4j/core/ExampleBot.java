@@ -29,6 +29,7 @@ import discord4j.core.object.entity.User;
 import discord4j.core.object.reaction.ReactionEmoji;
 import discord4j.core.object.util.Snowflake;
 import discord4j.rest.http.client.ClientException;
+import discord4j.store.jdk.JdkStoreService;
 import org.junit.BeforeClass;
 import org.junit.Ignore;
 import org.junit.Test;
@@ -63,7 +64,9 @@ public class ExampleBot {
     @Test
     @Ignore("Example code excluded from CI")
     public void testCommandBot() {
-        DiscordClient client = new DiscordClientBuilder(token).build();
+        DiscordClient client = new DiscordClientBuilder(token)
+                .setStoreService(new JdkStoreService())
+                .build();
 
         // Get the bot owner ID to filter commands
         AtomicLong ownerId = new AtomicLong();

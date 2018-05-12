@@ -30,6 +30,7 @@ import discord4j.core.object.presence.Presence;
 import discord4j.core.object.util.Snowflake;
 import discord4j.core.shard.ShardingClientBuilder;
 import discord4j.gateway.IdentifyOptions;
+import discord4j.store.jdk.JdkStoreService;
 import org.junit.BeforeClass;
 import org.junit.Ignore;
 import org.junit.Test;
@@ -105,6 +106,7 @@ public class RetryBotTest {
         final Map<Integer, IdentifyOptions> optionsMap = loadResumeData();
 
         DiscordClient client = new DiscordClientBuilder(token)
+                .setStoreService(new JdkStoreService())
                 .setEventScheduler(Schedulers.fromExecutor(Executors.newWorkStealingPool()))
                 .setIdentifyOptions(optionsMap.get(0))
                 .setGatewayObserver((s, o) -> optionsMap.put(o.getShardIndex(), o))
@@ -142,7 +144,9 @@ public class RetryBotTest {
     @Test
     @Ignore("Example code excluded from CI")
     public void testAndCancel() throws InterruptedException {
-        DiscordClient client = new DiscordClientBuilder(token).build();
+        DiscordClient client = new DiscordClientBuilder(token)
+                .setStoreService(new JdkStoreService())
+                .build();
         CountDownLatch latch = new CountDownLatch(1);
         Disposable disposable = client.login()
                 .doOnCancel(latch::countDown)

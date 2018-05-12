@@ -2,6 +2,7 @@ package discord4j.core.object.entity;
 
 import discord4j.core.DiscordClient;
 import discord4j.core.DiscordClientBuilder;
+import discord4j.store.jdk.JdkStoreService;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -17,7 +18,9 @@ public class EveryoneRoleLiveTest {
     public void initialize() {
         String token = System.getenv("token");
 
-        client = new DiscordClientBuilder(token).build();
+        client = new DiscordClientBuilder(token)
+                .setStoreService(new JdkStoreService())
+                .build();
     }
 
     @Test

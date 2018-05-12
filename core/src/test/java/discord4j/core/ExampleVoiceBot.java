@@ -32,6 +32,7 @@ import discord4j.core.event.domain.message.MessageCreateEvent;
 import discord4j.core.object.entity.Member;
 import discord4j.core.object.entity.VoiceChannel;
 import discord4j.core.object.util.Snowflake;
+import discord4j.store.jdk.JdkStoreService;
 import discord4j.voice.AudioProvider;
 import discord4j.voice.AudioReceiver;
 import discord4j.voice.VoiceConnection;
@@ -71,7 +72,9 @@ public class ExampleVoiceBot {
         playerManager.loadItem(audioSource, new MyAudioLoadResultHandler(player));
 
         // Bind events and log in
-        DiscordClient client = new DiscordClientBuilder(token).build();
+        DiscordClient client = new DiscordClientBuilder(token)
+                .setStoreService(new JdkStoreService())
+                .build();
 
         Mono<Void> leaveMessage = client.getEventDispatcher().on(MessageCreateEvent.class)
                 .filter(e -> e.getMember().map(Member::getId).map(it -> it.asString().equals(owner)).orElse(false))

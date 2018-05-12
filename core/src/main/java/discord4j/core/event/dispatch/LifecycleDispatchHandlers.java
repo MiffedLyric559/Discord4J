@@ -30,7 +30,17 @@ import java.util.stream.Collectors;
 
 class LifecycleDispatchHandlers {
 
-    static Mono<ReadyEvent> ready(DispatchContext<Ready> context) {
+    private final boolean readOnly;
+
+    LifecycleDispatchHandlers(boolean readOnly) {
+        this.readOnly = readOnly;
+    }
+
+    private <T> Mono<T> emptyIfReadOnly(Mono<T> mono) {
+        return readOnly ? Mono.empty() : mono;
+    }
+
+    Mono<ReadyEvent> ready(DispatchContext<Ready> context) {
         Ready dispatch = context.getDispatch();
         UserBean userBean = new UserBean(dispatch.getUser());
 
@@ -39,8 +49,8 @@ class LifecycleDispatchHandlers {
                 .map(g -> new ReadyEvent.Guild(g.getId(), g.isUnavailable()))
                 .collect(Collectors.toSet());
 
-        Mono<Void> saveUser = context.getServiceMediator().getStateHolder().getUserStore()
-                .save(context.getDispatch().getUser().getId(), userBean);
+        Mono<Void> saveUser = emptyIfReadOnly(context.getServiceMediator().getStateHolder().getUserStore()
+                .save(context.getDispatch().getUser().getId(), userBean));
 
         Mono<Void> saveSelfId = Mono.fromRunnable(() ->
                 context.getServiceMediator().getStateHolder().getSelfId().set(userBean.getId()));
@@ -50,11 +60,11 @@ class LifecycleDispatchHandlers {
                         guilds, dispatch.getSessionId(), dispatch.getTrace()));
     }
 
-    static Mono<ResumeEvent> resumed(DispatchContext<Resumed> context) {
+    Mono<ResumeEvent> resumed(DispatchContext<Resumed> context) {
         return Mono.just(new ResumeEvent(context.getServiceMediator().getClient(), context.getDispatch().getTrace()));
     }
 
-    static Mono<? extends GatewayLifecycleEvent> gatewayStateChanged(DispatchContext<GatewayStateChange> context) {
+    Mono<? extends GatewayLifecycleEvent> gatewayStateChanged(DispatchContext<GatewayStateChange> context) {
         GatewayStateChange dispatch = context.getDispatch();
         switch (dispatch.getState()) {
             case CONNECTED:
