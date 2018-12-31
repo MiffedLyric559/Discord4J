@@ -71,4 +71,8 @@ public class GlobalRateLimiter {
     public Mono<Void> onComplete() {
         return flux.then();
     }
+
+    boolean isRateLimited() {
+        return isRateLimited;
+    }
 }

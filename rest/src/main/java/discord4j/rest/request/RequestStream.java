@@ -61,6 +61,7 @@ class RequestStream<T> {
     private final GlobalRateLimiter globalRateLimiter;
     private final RateLimitStrategy rateLimitStrategy;
     private final Scheduler rateLimitScheduler;
+    private final BucketState state = new BucketState();
 
     RequestStream(BucketKey id, DiscordWebClient httpClient, GlobalRateLimiter globalRateLimiter,
                   RateLimitStrategy rateLimitStrategy, Scheduler rateLimitScheduler) {
@@ -139,7 +140,11 @@ class RequestStream<T> {
     }
 
     void start() {
-        read().subscribe(new Reader(rateLimitStrategy), t -> log.error("Error while consuming first request", t));
+        read().subscribe(new Reader(rateLimitStrategy, state), t -> log.error("Error while consuming first request", t));
+    }
+
+    RequestStreamStatus getStatus() {
+        return new RequestStreamStatus(globalRateLimiter.isRateLimited(), state.remaining, state.resetAt, state.date);
     }
 
     private Mono<RequestCorrelation<T>> read() {
@@ -159,7 +164,7 @@ class RequestStream<T> {
         private volatile Duration sleepTime = Duration.ZERO;
         private final Consumer<HttpClientResponse> rateLimitHandler;
 
-        private Reader(RateLimitStrategy strategy) {
+        private Reader(RateLimitStrategy strategy, BucketState state) {
             this.rateLimitHandler = response -> {
                 if (log.isTraceEnabled()) {
                     log.trace("Read {} with headers: {}", response.status(), response.responseHeaders());
@@ -174,6 +179,24 @@ class RequestStream<T> {
             };
         }
 
+        private final Consumer<HttpClientResponse> rateLimitHandler = response -> {
+            HttpHeaders headers = response.responseHeaders();
+            if (log.isTraceEnabled()) {
+                log.trace("Read {} with headers: {}", response.status(), response.responseHeaders());
+            }
+
+            int remaining = headers.getInt("X-RateLimit-Remaining", -1);
+            if (remaining == 0) {
+                long resetAt = Long.parseLong(headers.get("X-RateLimit-Reset"));
+                long discordTime = headers.getTimeMillis("Date") / 1000;
+                Duration nextReset = Duration.ofSeconds(resetAt - discordTime);
+                if (log.isTraceEnabled()) {
+                    log.trace("Delaying next request by {}", nextReset);
+                }
+                sleepTime = nextReset;
+            }
+        };
+
         private Mono<ClientRequest> adaptRequest(DiscordRequest<?> req) {
             return Mono.fromCallable(() -> new ClientRequest(req.getRoute().getMethod(),
                     RouteUtils.expandQuery(req.getCompleteUri(), req.getQueryParams()),
@@ -185,7 +208,6 @@ class RequestStream<T> {
                                         return headers;
                                     }, HttpHeaders::add))
                             .orElse(new DefaultHttpHeaders())));
-        }
 
         @Override
         public void accept(RequestCorrelation<T> correlation) {
@@ -239,5 +261,11 @@ class RequestStream<T> {
 
     @FunctionalInterface
     interface RateLimitStrategy extends Function<HttpClientResponse, Duration> {
+    }
+
+    private static class BucketState {
+        private volatile int remaining;
+        private volatile long resetAt;
+        private volatile long date;
     }
 }
