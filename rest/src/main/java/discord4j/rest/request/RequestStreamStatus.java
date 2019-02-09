@@ -50,4 +50,14 @@ public class RequestStreamStatus {
     public long getDate() {
         return date;
     }
+
+    @Override
+    public String toString() {
+        return "RequestStreamStatus{" +
+                "globalRateLimited=" + globalRateLimited +
+                ", remaining=" + remaining +
+                ", resetAt=" + resetAt +
+                ", date=" + date +
+                '}';
+    }
 }

@@ -89,6 +89,15 @@ public class DefaultRouter implements Router {
                 .publishOn(responseScheduler);
     }
 
+    @Override
+    public RequestStreamStatus getRouteStatus(DiscordRequest<?> request) {
+        RequestStream<?> requestStream = streamMap.get(computeBucket(request));
+        if (requestStream == null) {
+            throw new IllegalArgumentException("Invalid bucket key");
+        }
+        return requestStream.getStatus();
+    }
+
     @SuppressWarnings("unchecked")
     private <T> RequestStream<T> getStream(DiscordRequest<T> request) {
         return (RequestStream<T>)

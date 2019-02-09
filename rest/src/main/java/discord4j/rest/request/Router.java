@@ -32,4 +32,12 @@ public interface Router {
      * @return a mono that receives signals based on the request's response.
      */
     <T> Mono<T> exchange(DiscordRequest<T> request);
+
+    /**
+     * Retrieve the current status of the bucket associated with the given request.
+     *
+     * @param request the request to retrieve the request stream status for
+     * @return a snapshot of the current route status
+     */
+    RequestStreamStatus getRouteStatus(DiscordRequest<?> request);
 }
