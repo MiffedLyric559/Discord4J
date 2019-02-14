@@ -38,6 +38,7 @@ import reactor.core.Disposable;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Hooks;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Scheduler;
 import reactor.core.scheduler.Schedulers;
 import reactor.netty.DisposableServer;
 import reactor.netty.http.server.HttpServer;
@@ -136,7 +137,8 @@ public class RetryBotTest {
                 .onErrorContinue((t, o) -> log.error("Error", t))
                 .subscribe();
 
-        client.login().block();
+        Scheduler toDispose = Schedulers.newElastic("gateway", 60, false);
+        client.login(spec -> spec.setBlockUntilLogout(toDispose)).block();
     }
 
     @Test
