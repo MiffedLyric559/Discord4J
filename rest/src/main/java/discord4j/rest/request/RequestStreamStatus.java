@@ -20,15 +20,15 @@ package discord4j.rest.request;
 public class RequestStreamStatus {
 
     private final boolean globalRateLimited;
-    private final int remaining;
+    private final long remaining;
     private final long resetAt;
     private final long date;
 
-    public RequestStreamStatus(boolean globalRateLimited, int remaining, long resetAt, long date) {
+    public RequestStreamStatus(boolean globalRateLimited, RateLimitStrategy.Snapshot snapshot) {
         this.globalRateLimited = globalRateLimited;
-        this.remaining = remaining;
-        this.resetAt = resetAt;
-        this.date = date;
+        this.remaining = snapshot.getRemaining();
+        this.resetAt = snapshot.getResetAt();
+        this.date = snapshot.getDate();
     }
 
     public boolean isGlobalRateLimited() {
@@ -39,7 +39,7 @@ public class RequestStreamStatus {
         return globalRateLimited || remaining == 0;
     }
 
-    public int getRemaining() {
+    public long getRemaining() {
         return remaining;
     }
 

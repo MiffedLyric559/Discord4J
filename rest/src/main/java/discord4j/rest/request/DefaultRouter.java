@@ -43,7 +43,6 @@ import java.util.concurrent.ConcurrentHashMap;
 public class DefaultRouter implements Router {
 
     private static final Logger log = Loggers.getLogger(DefaultRouter.class);
-    private static final ResponseHeaderStrategy HEADER_STRATEGY = new ResponseHeaderStrategy();
 
     private final DiscordWebClient httpClient;
     private final Scheduler responseScheduler;
@@ -121,14 +120,14 @@ public class DefaultRouter implements Router {
         return BucketKey.of(request.getRoute().getUriTemplate(), request.getCompleteUri());
     }
 
-    private RequestStream.RateLimitStrategy getRateLimitStrategy(DiscordRequest<?> request) {
+    private RateLimitStrategy getRateLimitStrategy(DiscordRequest<?> request) {
         if (Routes.REACTION_CREATE.equals(request.getRoute())) {
             return new RateLimiterStrategy(new SimpleBucket(1, Duration.ofMillis(250)));
         }
-        return HEADER_STRATEGY;
+        return new ResponseHeaderStrategy();
     }
 
-    static class RateLimiterStrategy implements RequestStream.RateLimitStrategy {
+    static class RateLimiterStrategy implements RateLimitStrategy {
 
         private final RateLimiter rateLimiter;
 
@@ -141,20 +140,37 @@ public class DefaultRouter implements Router {
             rateLimiter.tryConsume(1);
             return Duration.ofMillis(rateLimiter.delayMillisToConsume(1));
         }
+
+        @Override
+        public Snapshot getSnapshot() {
+            return new Snapshot(rateLimiter.getPermits(), rateLimiter.getResetAtMillis(), System.currentTimeMillis());
+        }
     }
 
-    static class ResponseHeaderStrategy implements RequestStream.RateLimitStrategy {
+    static class ResponseHeaderStrategy implements RateLimitStrategy {
+
+        private volatile long remaining = 0;
+        private volatile long resetAt = 0;
+        private volatile long date = 0;
 
         @Override
         public Duration apply(HttpClientResponse response) {
             HttpHeaders headers = response.responseHeaders();
             int remaining = headers.getInt("X-RateLimit-Remaining", -1);
+            this.remaining = remaining;
             if (remaining == 0) {
                 long resetAt = Long.parseLong(headers.get("X-RateLimit-Reset"));
-                long discordTime = headers.getTimeMillis("Date") / 1000;
+                this.resetAt = resetAt;
+                this.date = headers.getTimeMillis("Date");
+                long discordTime = date / 1000;
                 return Duration.ofSeconds(resetAt - discordTime);
             }
             return Duration.ZERO;
+        }
+
+        @Override
+        public Snapshot getSnapshot() {
+            return new Snapshot(remaining, resetAt, date);
         }
     }
 }

@@ -63,4 +63,13 @@ public class SimpleBucket implements RateLimiter {
         return (nextRefillAt.get() - now) + (refillPeriodMillis * refills);
     }
 
+    @Override
+    public long getPermits() {
+        return count.get();
+    }
+
+    @Override
+    public long getResetAtMillis() {
+        return nextRefillAt.get();
+    }
 }

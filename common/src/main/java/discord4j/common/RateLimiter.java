@@ -42,4 +42,18 @@ public interface RateLimiter {
      * @return delay in milliseconds that a consumer must wait to consume <code>tokens</code> amount of permits.
      */
     long delayMillisToConsume(long tokens);
+
+    /**
+     * Obtain the current value of permits left in this rate limiter, as a snapshot.
+     *
+     * @return the number of permits left at this moment
+     */
+    long getPermits();
+
+    /**
+     * Obtain the timestamp where this rate limiter would have available permits.
+     *
+     * @return the next reset timestamp, in epoch milliseconds
+     */
+    long getResetAtMillis();
 }
